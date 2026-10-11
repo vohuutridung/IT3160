@@ -1,0 +1,5 @@
+# Prepared raw ZIPs already uploaded by the project owner.
+repo_id: vohuutridung/IT3160_data
+revision: 7db323fdf1e342caf5bcbe438cdc4ac424b53bee
+prefix: raw
+expected_file_count: 10

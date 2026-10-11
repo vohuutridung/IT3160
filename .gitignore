@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local chess dataset artifacts (source code lives in src/IT3160/data).
+/data/
+/tmp/
+/output/

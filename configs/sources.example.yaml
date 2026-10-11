@@ -1,0 +1,8 @@
+# Optional local source manifest; normally download from configs/hf_sources.yaml.
+# Paths are relative to this file. Example uses one of the 10 prepared HF ZIPs.
+sources:
+  - source_month: "2020-06"
+    archive_path: ../data/raw/lichess_elite_2020-06.zip
+    # max_games: 20000  # Optional cap on VALID games for a pilot, not position count.
+    # sha256: ...      # Optional pinned checksum; download writes real checksums.
+    # The download command writes verified HF repo/path/revision automatically.

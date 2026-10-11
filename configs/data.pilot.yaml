@@ -1,0 +1,14 @@
+seed: 42
+split:
+  train: 0.90
+  validation: 0.05
+  test: 0.05
+phase:
+  opening_max_ply: 24
+  endgame_material_max: 8
+quota:
+  train_per_phase: 4500
+  validation_per_phase: 250
+  test_per_phase: 250
+max_samples_per_game_per_phase: 1
+shard_size: 5000
