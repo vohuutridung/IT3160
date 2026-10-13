@@ -199,7 +199,8 @@ def test_download_cli_hf_overrides_and_month_subset(tmp_path, monkeypatch):
 
 def test_strict_build_shortage_is_nonzero_and_reviewable(tmp_path, inputs, capsys):
     assert cli.main(build_args(tmp_path, inputs)) == 2
-    error = json.loads(capsys.readouterr().err)
+    # Human progress precedes the final structured error on stderr.
+    error = json.loads(capsys.readouterr().err.splitlines()[-1])
     assert error["status"] == "quota_shortfall"
     paths = PipelinePaths(tmp_path / "runs", "pilot")
     manifest = verify_run_artifacts(paths)
@@ -244,6 +245,46 @@ def complete_empty_quota_run(tmp_path, inputs):
     }}))
     assert cli.main(build_args(tmp_path, inputs)) == 0
     return PipelinePaths(tmp_path / "runs", "pilot")
+
+
+def test_build_validate_upload_progress_does_not_mix_with_json(tmp_path, inputs, monkeypatch, capsys):
+    complete_empty_quota_run(tmp_path, inputs)
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["status"] == "complete"
+    assert "Build candidates [2021-12]: started" in captured.err
+    assert "Build dedup index: done" in captured.err
+    assert "Build processed: filter candidates: done" in captured.err
+    assert "Build processed: encode and write: done" in captured.err
+    assert "Validate processed: done" in captured.err
+    assert cli.main(run_args(tmp_path, "validate")) == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["error_count"] == 0
+    assert "Verify artifacts: pilot" in captured.err
+    assert "checking leakage and quotas" in captured.err
+    assert "errors=0, warnings=0" in captured.err
+    monkeypatch.setattr("IT3160.data.pipeline.upload_files_atomic", lambda *a, **kw: "test-commit")
+    assert cli.main(run_args(tmp_path, "upload")) == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["commits"] == ["test-commit"]
+    assert "Upload [pilot]: started" in captured.err
+    assert "Upload: publishing" in captured.err
+    assert "Upload [pilot]: done" in captured.err
+    assert "commit: test-commit" in captured.err
+
+
+def test_failed_upload_does_not_log_completion(tmp_path, inputs, monkeypatch, capsys):
+    complete_empty_quota_run(tmp_path, inputs)
+    capsys.readouterr()
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("Upload failed")
+
+    monkeypatch.setattr("IT3160.data.pipeline.upload_files_atomic", fail)
+    assert cli.main(run_args(tmp_path, "upload")) == 1
+    captured = capsys.readouterr()
+    assert "Upload [pilot]: started" in captured.err
+    assert "Error: Upload failed" in captured.err
+    assert "Upload [pilot]: done" not in captured.err
 
 
 @pytest.mark.parametrize("processed_only", [False, True])

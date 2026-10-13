@@ -31,6 +31,7 @@ from .phase import (
     OPENING_MAX_PLY,
     classify_phase,
 )
+from .progress import Progress, log
 from .schema import (
     ACTION_SPACE_SIZE,
     CandidateRecord,
@@ -610,10 +611,12 @@ def validate_dataset(
     phase_counts: Counter[tuple[str, str]] = Counter()
     split_counts: Counter[str] = Counter()
     index = _DatasetIndex()
+    progress = Progress(f"Validate {kind}", "records")
 
     try:
         for record in records:
             report.checked += 1
+            progress.update(report.checked)
 
             if kind == "candidate" and not isinstance(
                 record, CandidateRecord
@@ -691,6 +694,7 @@ def validate_dataset(
             for issue in row_issues:
                 report.add_error(issue)
 
+        log(f"Validate {kind}: checking leakage and quotas")
         index.commit()
 
         for game_id, n_splits in index.cross_split_games():
@@ -798,6 +802,7 @@ def validate_dataset(
     finally:
         index.close()
 
+    progress.finish(f"errors={report.error_count}, warnings={report.warning_count}")
     return report
 
 

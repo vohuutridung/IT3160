@@ -41,6 +41,7 @@ from .deduplication import (
     position_hash,
 )
 from .pgn_parser import ParserStats, iter_valid_games
+from .progress import Progress, log
 from .sampling import sample_game_candidates
 from .schema import (
     CandidateRecord,
@@ -659,6 +660,7 @@ def build_candidate_pool(
             source_games = 0
             source_candidates = 0
             parser_stats = ParserStats()
+            progress = Progress(f"Build candidates [{source.source_month}]", "valid games")
 
             for parsed in iter_valid_games(
                 source.archive_path,
@@ -668,6 +670,7 @@ def build_candidate_pool(
             ):
                 games_seen += 1
                 source_games += 1
+                progress.update(source_games)
 
                 content_id = game_content_hash(parsed.game)
                 if content_id in seen_content:
@@ -710,6 +713,10 @@ def build_candidate_pool(
                     candidate_counts[key] += 1
                     source_candidates += 1
 
+            progress.finish(
+                f"{source_candidates:,} candidates, "
+                f"{parser_stats.games_seen - parser_stats.games_accepted:,} rejected games"
+            )
             source_summaries.append(
                 {
                     "archive_path": str(source.archive_path.resolve()),
@@ -798,6 +805,7 @@ def build_dedup_index(
     accepted_set: set[str] = set()
     rejected_duplicate_games = 0
     indexed_candidates = 0
+    progress = Progress("Build dedup index", "candidates")
 
     with DeduplicationIndex(paths.dedup_db) as index:
         for candidate in iter_local_shards(
@@ -818,7 +826,9 @@ def build_dedup_index(
                 candidate.split,
             )
             indexed_candidates += 1
+            progress.update(indexed_candidates)
 
+        log("Build dedup index: finalizing")
         index.finalize()
         stats = dict(index.stats())
 
@@ -835,6 +845,7 @@ def build_dedup_index(
         overwrite=True,
     )
 
+    progress.finish(f"{len(accepted_set):,} unique games")
     return DedupBuildResult(
         stats=stats,
         accepted_games=len(accepted_set),
@@ -932,10 +943,14 @@ def build_processed_dataset(
             CREATE TABLE selected (fingerprint TEXT PRIMARY KEY);
         """)
 
+        filtering = Progress("Build processed: filter candidates", "candidates")
+        scanned = 0
         for candidate in iter_local_shards(
             paths.candidates_dir,
             kind="candidate",
         ):
+            scanned += 1
+            filtering.update(scanned)
             if candidate.game_id not in accepted_set:
                 skipped_unaccepted_game += 1
                 continue
@@ -968,6 +983,8 @@ def build_processed_dataset(
                       json.dumps(candidate.to_dict(), separators=(",", ":")),
                       fingerprint, representative))
 
+        filtering.finish(f"{skipped_cross_split:,} cross-split conflicts skipped")
+        log("Build processed: selecting quotas and shuffling")
         selection.execute("CREATE INDEX quota_order ON pool(split, phase, priority, fingerprint)")
         for (split, phase), target in quotas.items():
             selection.execute("""
@@ -976,7 +993,10 @@ def build_processed_dataset(
             """, (split.value, phase.value, target))
         selection.commit()
 
+        encoding = Progress("Build processed: encode and write", "samples")
+        encoded = 0
         for split in Split:
+            log(f"Build processed: writing {split.value}")
             rows = selection.execute("""
                 SELECT pool.payload FROM pool JOIN selected USING (fingerprint)
                 WHERE pool.split=? ORDER BY pool.shuffle, pool.fingerprint
@@ -990,6 +1010,8 @@ def build_processed_dataset(
                 writers[split].add(processed)
                 filled[(split, candidate.phase)] += 1
                 selected_counts[f"{split.value}/{candidate.phase.value}"] += 1
+                encoded += 1
+                encoding.update(encoded)
 
     shard_infos: list[dict] = []
     for writer in writers.values():
@@ -1004,6 +1026,7 @@ def build_processed_dataset(
             )
 
     complete = len(shortfalls) == 0
+    encoding.finish(f"{len(shard_infos):,} shards, {sum(shortfalls.values()):,} missing samples")
 
     if require_full_quota and not complete:
         raise QuotaShortfallError(shortfalls)
@@ -1046,6 +1069,7 @@ def validate_processed_shards(
 ) -> ValidationReport:
     """Validate local processed shards and write the report."""
 
+    log(f"Validate: checking saved shards for {paths.run_id}")
     if paths.run_manifest_path.exists():
         previous = read_manifest(paths.run_manifest_path)
         if previous.get("config") != config.to_dict():
@@ -1211,6 +1235,7 @@ def write_run_manifest(
 
 def verify_run_artifacts(paths: PipelinePaths, *, require_complete: bool = False) -> dict:
     """Verify a saved run before reuse or publication; never trust status alone."""
+    log(f"Verify artifacts: {paths.run_id}")
     manifest = read_manifest(paths.run_manifest_path)
     if manifest.get("run_id") != paths.run_id:
         raise ValueError("Run ID does not match its manifest")
@@ -1255,6 +1280,7 @@ def upload_run_artifacts(
 ) -> list[str]:
     """Upload local run artifacts to the HF dataset repo."""
 
+    progress = Progress(f"Upload [{paths.run_id}]", "files")
     verify_run_artifacts(paths, require_complete=True)
 
     commit_urls: list[str] = []
@@ -1307,10 +1333,14 @@ def upload_run_artifacts(
         f"processed/{paths.run_id}/",
         f"manifests/{paths.run_id}/",
     ]
+    size_mib = sum(path.stat().st_size for path in files.values()) / (1024 * 1024)
+    log(f"Upload: publishing {len(files):,} files ({size_mib:.1f} MiB) to {repo_id}")
     commit_urls.append(upload_files_atomic(
         files, protected_prefixes, repo_id=repo_id, token=token,
         commit_message=f"Publish validated dataset run {paths.run_id}",
     ))
+    progress.update(len(files))
+    progress.finish(f"commit: {commit_urls[-1]}")
     return commit_urls
 
 
