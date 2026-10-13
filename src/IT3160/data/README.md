@@ -21,12 +21,12 @@ python scripts/data/run_pipeline.py --run-id official-v1
 ```
 
 `hf auth login`: đăng nhập tài khoản Hugging Face có quyền ghi vào repo
-`vohuutridung/IT3160_data`.
+`vohuutridung/IT3160`.
 
 `python scripts/data/run_pipeline.py --run-id official-v1`: chạy lần lượt toàn bộ
 quy trình sau, tự động upload khi xử lý và kiểm tra thành công:
 
-1. Lấy đủ 10 ZIP đã có trong `raw/` của repo HF, theo snapshot trong
+1. Lấy đủ 5 ZIP đã có trong `raw/` của repo HF, theo snapshot trong
    `configs/hf_sources.yaml`. Lưu ZIP và danh sách nguồn tại `data/raw/`;
    file hợp lệ đã tải được dùng lại.
 2. Xử lý PGN theo `configs/data.yaml`: chia train/validation/test, lấy mẫu theo
@@ -34,7 +34,7 @@ quy trình sau, tự động upload khi xử lý và kiểm tra thành công:
 3. Kiểm tra checksum, từng mẫu, nước đi hợp lệ, nhãn, split, rò rỉ dữ liệu và quota.
    Nếu thiếu quota hoặc có lỗi, script dừng trước bước upload.
 4. Upload candidates, processed data và manifests vào các folder tương ứng
-   trong cùng repo `vohuutridung/IT3160_data`:
+   trong cùng repo `vohuutridung/IT3160`:
 
 ```text
 raw/                                         # ZIP nguồn đã có
@@ -67,7 +67,7 @@ local; `--no-upload` tắt bước công bố lên HF. `check.sh` chạy tests v
 ## 4. Lấy bù nếu cần
 
 Chỉ dùng khi run còn thiếu quota và bạn có các tháng **chưa được dùng trong run**.
-Nếu đã xử lý đủ 10 ZIP hiện tại thì cần bổ sung nguồn mới trước khi lấy bù.
+Nếu đã xử lý đủ 5 ZIP hiện tại thì cần bổ sung nguồn mới trước khi lấy bù.
 Ví dụ dưới đây chỉ áp dụng nếu `official-v1` chưa dùng tháng `2021-03`:
 
 ```bash

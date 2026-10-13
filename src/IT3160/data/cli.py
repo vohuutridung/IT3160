@@ -35,7 +35,7 @@ def load_sources(path: str | Path) -> list[SourceSpec]:
         raise ValueError("Hugging Face origin must be a mapping")
     sources = []
     allowed = {"archive_path", "source_month", "max_games", "sha256", "url", "size_bytes",
-               "hf_repo_id", "hf_path", "hf_revision"}
+               "hf_repo_id", "hf_path"}
     for row in raw["sources"]:
         if not isinstance(row, dict) or set(row) - allowed:
             raise ValueError("Invalid source entry or unknown source keys")
@@ -49,7 +49,6 @@ def load_sources(path: str | Path) -> list[SourceSpec]:
         source = SourceSpec(
             archive.resolve(), row["source_month"], row.get("max_games"),
             hf_repo_id=row.get("hf_repo_id"), hf_path=row.get("hf_path"),
-            hf_revision=row.get("hf_revision"),
         )
         if not source.archive_path.is_file():
             raise FileNotFoundError(source.archive_path)
@@ -78,9 +77,8 @@ def make_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     download = commands.add_parser("download", help="Fetch prepared ZIPs from Hugging Face")
     download.add_argument("--source-config", type=Path, default=Path("configs/hf_sources.yaml"),
-                          help="HF source repo/revision/prefix config")
+                          help="HF source repo/prefix config")
     download.add_argument("--repo-id", help="Override the source dataset repo")
-    download.add_argument("--revision", help="Override the source revision (resolved to a commit SHA)")
     download.add_argument("--prefix", help="Override the source folder; empty string means repo root")
     download.add_argument("--months", nargs="+", metavar="YYYY-MM",
                           help="Optional subset; default fetches every prepared ZIP")
@@ -114,13 +112,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "download":
             with args.source_config.open(encoding="utf-8") as stream:
                 origin = yaml.safe_load(stream)
-            allowed = {"repo_id", "revision", "prefix", "expected_file_count"}
+            allowed = {"repo_id", "prefix", "expected_file_count"}
             if not isinstance(origin, dict) or set(origin) - allowed:
                 raise ValueError("Invalid Hugging Face source config")
             origin = dict(origin)
             if args.repo_id and args.repo_id != origin.get("repo_id"):
-                origin.update(repo_id=args.repo_id, revision="main", expected_file_count=None)
-            for name in ("repo_id", "revision", "prefix"):
+                origin.update(repo_id=args.repo_id, expected_file_count=None)
+            for name in ("repo_id", "prefix"):
                 value = getattr(args, name)
                 if value is not None:
                     origin[name] = value

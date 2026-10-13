@@ -250,14 +250,19 @@ def test_huggingface_adapters_forward_arguments_and_validate_download(tmp_path, 
         "commit_message": "Upload manifests/v1.json",
     })
     expected = storage.compute_checksum(path)
-    assert storage.download_file("manifests/v1.json", revision="abc", expected_sha256=expected) == path
-    assert calls[-1][1]["revision"] == "abc"
+    assert storage.download_file("manifests/v1.json", expected_sha256=expected) == path
+    assert calls[-1][1] == {
+        "repo_id": storage.REPO_ID,
+        "repo_type": "dataset",
+        "filename": "manifests/v1.json",
+        "token": None,
+    }
     with pytest.raises(ValueError, match="Checksum mismatch"):
         storage.download_file("manifests/v1.json", expected_sha256="0" * 64)
     assert storage.list_remote_files("processed/v1") == ["processed/v1/a", "processed/v1/z"]
 
 
-def test_atomic_publication_pins_inventory_and_one_commit(tmp_path, monkeypatch):
+def test_atomic_publication_uses_observed_head_as_commit_parent(tmp_path, monkeypatch):
     parquet = tmp_path / "part.parquet"
     manifest = tmp_path / "run.json"
     parquet.write_bytes(b"parquet fixture")
@@ -286,7 +291,7 @@ def test_atomic_publication_pins_inventory_and_one_commit(tmp_path, monkeypatch)
     assert result == "https://example.test/commit/published"
     assert [name for name, _ in calls] == ["info", "list", "commit"]
     assert calls[0][1] == {"repo_id": "owner/repo", "repo_type": "dataset", "token": "test-token"}
-    assert calls[1][1] == {**calls[0][1], "revision": "current-head-sha"}
+    assert calls[1][1] == calls[0][1]
     kwargs = calls[2][1]
     assert kwargs["parent_commit"] == "current-head-sha"
     assert kwargs["commit_message"] == "Publish v1"

@@ -31,7 +31,7 @@ from .schema import (
 )
 
 
-REPO_ID = "vohuutridung/IT3160_data"
+REPO_ID = "vohuutridung/IT3160"
 REPO_TYPE = "dataset"
 
 SCHEMA_VERSION = "1"
@@ -519,9 +519,8 @@ def upload_files_atomic(
 
     Every destination must fall under a protected run prefix. Any existing
     file in those prefixes rejects publication: published run IDs are
-    immutable, so a rebuilt dataset needs a new run ID. Pin both inventory
-    lookup and the commit's parent to the same repository revision to avoid
-    races with another publication.
+    immutable, so a rebuilt dataset needs a new run ID. The commit uses the
+    observed repository head as its parent to reject concurrent publication.
     """
 
     if not files:
@@ -543,11 +542,11 @@ def upload_files_atomic(
         destinations[destination] = local_path
 
     api = HfApi()
-    revision = api.repo_info(repo_id=repo_id, repo_type=REPO_TYPE, token=token).sha
-    if not isinstance(revision, str) or not revision:
-        raise ValueError("Repository did not return a commit revision")
+    head_commit = api.repo_info(repo_id=repo_id, repo_type=REPO_TYPE, token=token).sha
+    if not isinstance(head_commit, str) or not head_commit:
+        raise ValueError("Repository did not return a head commit")
     existing = api.list_repo_files(
-        repo_id=repo_id, repo_type=REPO_TYPE, token=token, revision=revision,
+        repo_id=repo_id, repo_type=REPO_TYPE, token=token,
     )
     if any(
         path == prefix or path.startswith(prefix + "/")
@@ -562,7 +561,7 @@ def upload_files_atomic(
         repo_type=REPO_TYPE,
         token=token,
         commit_message=commit_message,
-        parent_commit=revision,
+        parent_commit=head_commit,
         operations=[
             CommitOperationAdd(path_in_repo=destination, path_or_fileobj=str(local_path))
             for destination, local_path in sorted(destinations.items())
@@ -576,7 +575,6 @@ def download_file(
     *,
     repo_id: str = REPO_ID,
     token: str | None = None,
-    revision: str | None = None,
     expected_sha256: str | None = None,
 ) -> Path:
     """
@@ -597,7 +595,6 @@ def download_file(
             repo_type=REPO_TYPE,
             filename=path_in_repo,
             token=token,
-            revision=revision,
         )
     )
 

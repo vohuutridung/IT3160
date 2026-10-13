@@ -1,4 +1,4 @@
-"""Audit snapshot identity, discovery, and safe reuse of the user's HF ZIPs."""
+"""Audit discovery, integrity, and safe reuse of the user's HF ZIPs."""
 
 import hashlib
 import io
@@ -11,8 +11,6 @@ import pytest
 from IT3160.data import cli, hf_sources
 from IT3160.data.storage import read_manifest
 
-SNAPSHOT = "7db323fdf1e342caf5bcbe438cdc4ac424b53bee"
-OTHER_SNAPSHOT = "c" * 40
 MONTHS = [f"2020-{month:02d}" for month in range(6, 13)] + ["2021-01", "2021-02", "2021-03"]
 
 
@@ -28,29 +26,21 @@ def hub(tmp_path, monkeypatch):
     payload = archive_bytes()
     state = SimpleNamespace(
         files={f"raw/lichess_elite_{month}.zip": payload for month in MONTHS},
-        calls=[], branch_sha=SNAPSHOT, checksums={}, sizes={},
+        calls=[], checksums={}, sizes={},
     )
 
     class Api:
         def repo_info(self, **kwargs):
             state.calls.append(("info", kwargs))
-            revision = kwargs["revision"]
-            sha = state.branch_sha if revision in {"main", "release"} else revision
             siblings = [SimpleNamespace(
                 rfilename=name, size=state.sizes.get(name, len(contents)),
                 lfs=SimpleNamespace(sha256=state.checksums.get(
                     name, hashlib.sha256(contents).hexdigest())),
             ) for name, contents in state.files.items()]
-            return SimpleNamespace(sha=sha, siblings=siblings)
-
-        def list_repo_files(self, **kwargs):
-            state.calls.append(("list", kwargs))
-            assert len(kwargs["revision"]) == 40
-            return list(state.files)
+            return SimpleNamespace(siblings=siblings)
 
     def fetch(**kwargs):
         state.calls.append(("download", kwargs))
-        assert len(kwargs["revision"]) == 40
         cached = tmp_path / "fake-hf-cache" / kwargs["filename"]
         cached.parent.mkdir(parents=True, exist_ok=True)
         cached.write_bytes(state.files[kwargs["filename"]])
@@ -70,26 +60,23 @@ def downloads(hub):
     return [kwargs for action, kwargs in hub.calls if action == "download"]
 
 
-def test_default_fetch_discovers_all_ten_uploaded_archives_and_pins_every_read(tmp_path, hub):
+def test_default_fetch_discovers_all_ten_uploaded_archives(tmp_path, hub):
     manifest_path = fetch_sources(tmp_path, expected_file_count=10)
     manifest = read_manifest(manifest_path)
     assert [source["source_month"] for source in manifest["sources"]] == MONTHS
     assert manifest["huggingface"] == {
-        "repo_id": "vohuutridung/IT3160_data", "revision": SNAPSHOT, "prefix": "raw",
+        "repo_id": "vohuutridung/IT3160", "prefix": "raw",
     }
     assert len(downloads(hub)) == 10
     assert hub.calls[0] == ("info", {
-        "repo_id": "vohuutridung/IT3160_data", "repo_type": "dataset",
-        "revision": "main", "token": None,
+        "repo_id": "vohuutridung/IT3160", "repo_type": "dataset",
+        "files_metadata": True, "token": None,
     })
-    assert any(action == "list" for action, _ in hub.calls)
     for _, kwargs in hub.calls[1:]:
-        assert kwargs["revision"] == SNAPSHOT
         assert kwargs["repo_type"] == "dataset"
-        assert kwargs["repo_id"] == "vohuutridung/IT3160_data"
+        assert kwargs["repo_id"] == "vohuutridung/IT3160"
     for source in manifest["sources"]:
-        assert source["hf_repo_id"] == "vohuutridung/IT3160_data"
-        assert source["hf_revision"] == SNAPSHOT
+        assert source["hf_repo_id"] == "vohuutridung/IT3160"
         assert source["hf_path"] == f"raw/lichess_elite_{source['source_month']}.zip"
         archive = Path(source["archive_path"])
         assert archive.parent == tmp_path / "raw"
@@ -98,22 +85,18 @@ def test_default_fetch_discovers_all_ten_uploaded_archives_and_pins_every_read(t
         assert "url" not in source
     loaded = cli.load_sources(manifest_path)
     assert len(loaded) == 10
-    assert all(source.hf_repo_id == "vohuutridung/IT3160_data" for source in loaded)
-    assert all(source.hf_revision == SNAPSHOT for source in loaded)
+    assert all(source.hf_repo_id == "vohuutridung/IT3160" for source in loaded)
     assert [source.hf_path for source in loaded] == [row["hf_path"] for row in manifest["sources"]]
 
 
-def test_month_subset_retains_snapshot_and_merges_new_months_for_refill(tmp_path, hub):
+def test_month_subset_merges_new_months_for_refill(tmp_path, hub):
     manifest_path = fetch_sources(tmp_path, ["2020-07"])
     before = read_manifest(manifest_path)["sources"][0]
-    hub.branch_sha = OTHER_SNAPSHOT
     hub.calls.clear()
     fetch_sources(tmp_path, ["2020-06"])
     manifest = read_manifest(manifest_path)
     assert [row["source_month"] for row in manifest["sources"]] == ["2020-06", "2020-07"]
     assert manifest["sources"][1] == before
-    assert manifest["huggingface"]["revision"] == SNAPSHOT
-    assert all(kwargs["revision"] == SNAPSHOT for _, kwargs in hub.calls)
     assert [kwargs["filename"] for kwargs in downloads(hub)] == ["raw/lichess_elite_2020-06.zip"]
 
 
@@ -126,10 +109,8 @@ def test_reuse_verifies_local_archives_without_fetching_again(tmp_path, hub):
     assert manifest_path.read_bytes() == before
 
 
-def test_branch_tag_is_resolved_once_before_listing_and_downloading(tmp_path, hub):
-    fetch_sources(tmp_path, ["2020-06"], revision="release", token="fixture-token")
-    assert hub.calls[0][1]["revision"] == "release"
-    assert all(kwargs["revision"] == SNAPSHOT for _, kwargs in hub.calls[1:])
+def test_auth_token_is_forwarded_to_metadata_and_download(tmp_path, hub):
+    fetch_sources(tmp_path, ["2020-06"], token="fixture-token")
     assert all(kwargs["token"] == "fixture-token" for _, kwargs in hub.calls)
 
 
@@ -242,31 +223,7 @@ def test_invalid_remote_lfs_checksum_fails_before_downloading(tmp_path, hub):
     assert not downloads(hub)
 
 
-def test_unresolved_revision_is_not_used_as_download_snapshot(tmp_path, hub):
-    hub.branch_sha = "main"
-    with pytest.raises(ValueError, match="(?i)SHA|commit"):
-        fetch_sources(tmp_path, ["2020-06"])
-    assert len(hub.calls) == 1
-    assert not downloads(hub)
-
-
-def test_metadata_snapshot_mismatch_is_rejected_before_download(tmp_path, hub, monkeypatch):
-    original_api = hf_sources.HfApi
-
-    class MismatchedMetadataApi(original_api):
-        def repo_info(self, **kwargs):
-            result = super().repo_info(**kwargs)
-            if kwargs.get("files_metadata"):
-                result.sha = OTHER_SNAPSHOT
-            return result
-
-    monkeypatch.setattr(hf_sources, "HfApi", MismatchedMetadataApi)
-    with pytest.raises(ValueError, match="(?i)revision|snapshot"):
-        fetch_sources(tmp_path, ["2020-06"])
-    assert not downloads(hub)
-
-
-def test_missing_remote_metadata_is_rejected_before_download(tmp_path, hub, monkeypatch):
+def test_missing_remote_inventory_is_rejected_before_download(tmp_path, hub, monkeypatch):
     original_api = hf_sources.HfApi
 
     class MissingMetadataApi(original_api):
@@ -276,13 +233,13 @@ def test_missing_remote_metadata_is_rejected_before_download(tmp_path, hub, monk
             return result
 
     monkeypatch.setattr(hf_sources, "HfApi", MissingMetadataApi)
-    with pytest.raises(ValueError, match="(?i)metadata"):
+    with pytest.raises(ValueError, match="(?i)ZIP|inventory"):
         fetch_sources(tmp_path, ["2020-06"])
     assert not downloads(hub)
 
 
 @pytest.mark.parametrize("override", [
-    {"repo_id": "../invalid"}, {"revision": ""}, {"revision": None},
+    {"repo_id": "../invalid"},
     {"expected_file_count": False}, {"expected_file_count": 0}, {"expected_file_count": -1},
     {"expected_file_count": "10"},
 ])
@@ -300,9 +257,9 @@ def test_remote_size_is_verified_before_archive_publication(tmp_path, hub):
 
 
 @pytest.mark.parametrize("override", [
-    {"repo_id": "owner/another"}, {"prefix": "archives"}, {"revision": OTHER_SNAPSHOT},
+    {"repo_id": "owner/another"}, {"prefix": "archives"},
 ])
-def test_existing_manifest_cannot_silently_change_origin_or_snapshot(tmp_path, hub, override):
+def test_existing_manifest_cannot_silently_change_origin(tmp_path, hub, override):
     manifest_path = fetch_sources(tmp_path, ["2020-06"])
     before = manifest_path.read_bytes()
     with pytest.raises(ValueError):

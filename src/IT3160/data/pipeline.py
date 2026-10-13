@@ -201,7 +201,6 @@ class SourceSpec:
     max_games: int | None = None
     hf_repo_id: str | None = None
     hf_path: str | None = None
-    hf_revision: str | None = None
 
     def __post_init__(self):
         object.__setattr__(
@@ -221,15 +220,13 @@ class SourceSpec:
             type(self.max_games) is not int or self.max_games < 0
         ):
             raise ValueError("max_games must be a non-negative int")
-        origin = (self.hf_repo_id, self.hf_path, self.hf_revision)
+        origin = (self.hf_repo_id, self.hf_path)
         if any(value is not None for value in origin):
             if not all(isinstance(value, str) and value.strip() for value in origin):
-                raise ValueError("Hugging Face source metadata must include repo, path and revision")
+                raise ValueError("Hugging Face source metadata must include repo and path")
             path = PurePosixPath(self.hf_path)
             if path.is_absolute() or ".." in path.parts or "\\" in self.hf_path:
                 raise ValueError("Invalid Hugging Face source path")
-            if not re.fullmatch(r"[0-9a-fA-F]{40,64}", self.hf_revision):
-                raise ValueError("Hugging Face source revision must be a pinned commit SHA")
 
 
 @dataclass(frozen=True, slots=True)
@@ -731,8 +728,8 @@ def build_candidate_pool(
                     "games_accepted": source_games,
                     "candidates_emitted": source_candidates,
                     "parser": parser_stats.to_dict(),
-                    **({"hf_repo_id": source.hf_repo_id, "hf_path": source.hf_path,
-                        "hf_revision": source.hf_revision} if source.hf_repo_id else {}),
+                    **({"hf_repo_id": source.hf_repo_id, "hf_path": source.hf_path}
+                       if source.hf_repo_id else {}),
                 }
             )
 

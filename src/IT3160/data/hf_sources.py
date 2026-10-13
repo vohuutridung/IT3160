@@ -1,4 +1,4 @@
-"""Fetch the prepared monthly ZIPs from a pinned Hugging Face dataset snapshot."""
+"""Fetch the prepared monthly ZIPs from the current Hugging Face dataset."""
 
 from __future__ import annotations
 
@@ -45,12 +45,10 @@ def validate_hf_source_entry(row: dict, origin: dict) -> None:
     if not isinstance(row, dict) or not isinstance(origin, dict):
         raise ValueError("Invalid Hugging Face source entry")
     prefix = _safe_path(origin.get("prefix"), allow_empty=True)
-    if (row.get("hf_repo_id") != origin.get("repo_id")
-            or row.get("hf_revision") != origin.get("revision")):
+    if row.get("hf_repo_id") != origin.get("repo_id"):
         raise ValueError("Source entry does not match the manifest's Hugging Face origin")
     SourceSpec(Path("unused.zip"), row.get("source_month"),
-               hf_repo_id=row.get("hf_repo_id"), hf_path=row.get("hf_path"),
-               hf_revision=row.get("hf_revision"))
+               hf_repo_id=row.get("hf_repo_id"), hf_path=row.get("hf_path"))
     remote = _safe_path(row.get("hf_path"))
     if prefix and not remote.startswith(prefix + "/"):
         raise ValueError("Source path does not belong to the manifest's Hugging Face prefix")
@@ -79,21 +77,18 @@ def download_sources(
     manifest_path: Path,
     *,
     repo_id: str = REPO_ID,
-    revision: str = "main",
     prefix: str = "raw",
     expected_file_count: int | None = None,
     token: str | None = None,
 ) -> Path:
-    """Fetch all prepared ZIPs, or selected months, and write a reusable source manifest.
+    """Fetch ZIPs from the current repo state and write a reusable source manifest.
 
-    Resolve the ref once, then pin inventory, metadata and downloads to that commit.
-    Existing manifests keep their pinned snapshot when the caller requests main.
     Local source files are published only after SHA-256 and ZIP validation.
+    Existing local files must still match their saved checksum and current
+    remote metadata before they are reused.
     """
     validate_repo_id(repo_id)
     prefix = _safe_path(prefix, allow_empty=True)
-    if not isinstance(revision, str) or not revision.strip():
-        raise ValueError("A Hugging Face revision is required")
     if expected_file_count is not None and (
         type(expected_file_count) is not int or expected_file_count <= 0
     ):
@@ -115,8 +110,6 @@ def download_sources(
             previous_origin.get("repo_id") != repo_id or previous_origin.get("prefix") != prefix
         ):
             raise ValueError("Source manifest belongs to a different origin; use a new manifest")
-        if revision == "main":
-            revision = previous_origin["revision"]
         previous_rows = previous.get("sources")
         if not isinstance(previous_rows, list):
             raise ValueError("Source manifest must contain a sources list")
@@ -127,17 +120,11 @@ def download_sources(
             entries[row["source_month"]] = row
 
     api = HfApi()
-    commit = api.repo_info(repo_id=repo_id, repo_type=REPO_TYPE, revision=revision, token=token).sha
-    if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-fA-F]{40,64}", commit):
-        raise ValueError("Hugging Face did not return a pinned commit SHA")
-    if previous_origin and previous_origin["revision"] != commit:
-        raise ValueError("Source snapshot changed; use a new raw directory and manifest")
-    paths = api.list_repo_files(repo_id=repo_id, repo_type=REPO_TYPE, revision=commit, token=token)
-    info = api.repo_info(repo_id=repo_id, repo_type=REPO_TYPE, revision=commit,
-                         files_metadata=True, token=token)
-    if info.sha != commit:
-        raise ValueError("Hugging Face inventory revision mismatch")
+    info = api.repo_info(
+        repo_id=repo_id, repo_type=REPO_TYPE, files_metadata=True, token=token,
+    )
     metadata = {item.rfilename: item for item in info.siblings}
+    paths = sorted(metadata)
 
     available: dict[str, tuple[str, str]] = {}
     for remote in sorted(paths):
@@ -201,7 +188,7 @@ def download_sources(
         else:
             cached = Path(hf_hub_download(
                 repo_id=repo_id, repo_type=REPO_TYPE, filename=remote,
-                revision=commit, token=token, cache_dir=raw_dir / ".hf-cache",
+                token=token, cache_dir=raw_dir / ".hf-cache",
             ))
             check_file(cached)
             local.parent.mkdir(parents=True, exist_ok=True)
@@ -223,10 +210,10 @@ def download_sources(
         entries[month] = {
             "archive_path": str(local), "source_month": month,
             "sha256": compute_checksum(local), "size_bytes": local.stat().st_size,
-            "hf_repo_id": repo_id, "hf_path": remote, "hf_revision": commit,
+            "hf_repo_id": repo_id, "hf_path": remote,
         }
         write_manifest({
-            "huggingface": {"repo_id": repo_id, "revision": commit, "prefix": prefix},
+            "huggingface": {"repo_id": repo_id, "prefix": prefix},
             "sources": [entries[key] for key in sorted(entries)],
         }, manifest_path, overwrite=True)
     return manifest_path

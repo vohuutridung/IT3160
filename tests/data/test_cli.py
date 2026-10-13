@@ -41,12 +41,10 @@ def mock_hf(monkeypatch, tmp_path, files):
 
         def list_repo_files(self, **kwargs):
             calls.append(("list", kwargs))
-            assert kwargs["revision"] == HF_SHA
             return list(files)
 
     def fetch(**kwargs):
         calls.append(("download", kwargs))
-        assert kwargs["revision"] == HF_SHA
         cache = tmp_path / "fake-cache" / kwargs["filename"]
         cache.parent.mkdir(parents=True, exist_ok=True)
         cache.write_bytes(files[kwargs["filename"]])
@@ -164,7 +162,7 @@ def test_invalid_months_rejected_before_download(tmp_path, monkeypatch, months):
         cli.download_sources(months, tmp_path / "raw", tmp_path / "sources.json")
 
 
-def test_download_cli_defaults_to_all_ten_hf_archives(tmp_path, monkeypatch, capsys):
+def test_download_cli_defaults_to_all_configured_hf_archives(tmp_path, monkeypatch, capsys):
     calls = []
 
     def fetch(months, raw_dir, manifest_path, **kwargs):
@@ -176,9 +174,9 @@ def test_download_cli_defaults_to_all_ten_hf_archives(tmp_path, monkeypatch, cap
     months, raw_dir, manifest, kwargs = calls[0]
     assert months is None
     assert manifest == raw_dir / "sources.json"
-    assert kwargs["repo_id"] == "vohuutridung/IT3160_data"
+    assert kwargs["repo_id"] == "vohuutridung/IT3160"
     assert kwargs["prefix"] == "raw"
-    assert kwargs["expected_file_count"] == 10
+    assert kwargs["expected_file_count"] == 5
     assert json.loads(capsys.readouterr().out)["sources_manifest"] == str(manifest)
 
 
@@ -187,12 +185,11 @@ def test_download_cli_hf_overrides_and_month_subset(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "download_sources", lambda *args, **kwargs:
                         calls.append((args, kwargs)) or args[2])
     assert cli.main(["download", "--months", "2020-06", "--repo-id", "owner/other",
-                     "--revision", "snapshot", "--prefix", "archives",
+                     "--prefix", "archives",
                      "--raw-dir", str(tmp_path / "raw")]) == 0
     args, kwargs = calls[0]
     assert args[0] == ["2020-06"]
     assert kwargs["repo_id"] == "owner/other"
-    assert kwargs["revision"] == "snapshot"
     assert kwargs["prefix"] == "archives"
     assert kwargs["expected_file_count"] is None
 

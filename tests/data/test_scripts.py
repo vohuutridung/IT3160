@@ -36,7 +36,7 @@ def test_official_runner_defaults_and_order(runner, tmp_path, monkeypatch):
     assert str(ROOT / "configs/data.yaml") in calls[1]
     assert str(ROOT / "configs/hf_sources.yaml") in calls[0]
     assert str(tmp_path / "raw/sources.json") in calls[1]
-    assert calls[-1][-2:] == ["--repo-id", "vohuutridung/IT3160_data"]
+    assert calls[-1][-2:] == ["--repo-id", "vohuutridung/IT3160"]
     assert all("--allow-partial" not in call and "--quick" not in call for call in calls)
     assert all(call[call.index("--run-id") + 1] == "official-v1" for call in calls[1:])
     assert all(str(tmp_path / "runs") in call for call in calls[1:])
@@ -124,7 +124,7 @@ def test_real_local_processing_only_publishes_complete_run(runner, tmp_path, mon
                             "manifests/official-v1/"]
         assert any(name.startswith("interim/candidates/official-v1/") for name in files)
         assert "manifests/official-v1/run.json" in files
-        assert kwargs["repo_id"] == "vohuutridung/IT3160_data"
+        assert kwargs["repo_id"] == "vohuutridung/IT3160"
     else:
         assert result == 2
         assert manifest["status"] == "quota_shortfall"

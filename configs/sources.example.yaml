@@ -5,4 +5,4 @@ sources:
     archive_path: ../data/raw/lichess_elite_2020-06.zip
     # max_games: 20000  # Optional cap on VALID games for a pilot, not position count.
     # sha256: ...      # Optional pinned checksum; download writes real checksums.
-    # The download command writes verified HF repo/path/revision automatically.
+    # The download command writes verified HF repo/path automatically.

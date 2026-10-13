@@ -118,23 +118,17 @@ def test_missing_raw_archive_redownload_must_match_persisted_sha_before_publish(
 
     responses = iter([original_zip, changed_zip, original_zip])
     requests = []
-    snapshot = "b" * 40
     remote_path = "raw/lichess_elite_2020-06.zip"
 
     class Api:
         def repo_info(self, **kwargs):
-            return SimpleNamespace(sha=snapshot, siblings=[SimpleNamespace(
+            return SimpleNamespace(siblings=[SimpleNamespace(
                 rfilename=remote_path, size=len(original_zip),
                 lfs=SimpleNamespace(sha256=hashlib.sha256(original_zip).hexdigest()),
             )])
 
-        def list_repo_files(self, **kwargs):
-            assert kwargs["revision"] == snapshot
-            return [remote_path]
-
     def fetch(**kwargs):
         requests.append(kwargs)
-        assert kwargs["revision"] == snapshot
         assert kwargs["filename"] == remote_path
         cached = tmp_path / "cached.zip"
         cached.write_bytes(next(responses))

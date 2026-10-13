@@ -1,4 +1,4 @@
-"""Bind ordinary Git ZIP contents to the pinned Hugging Face snapshot."""
+"""Verify ordinary Git ZIP contents against Hugging Face metadata."""
 
 import hashlib
 import io
@@ -12,7 +12,6 @@ from IT3160.data import hf_sources
 from IT3160.data.storage import read_manifest
 
 
-SNAPSHOT = "7db323fdf1e342caf5bcbe438cdc4ac424b53bee"
 REMOTE = "raw/lichess_elite_2020-06.zip"
 
 
@@ -37,13 +36,9 @@ def ordinary_git_hub(tmp_path, monkeypatch):
     class Api:
         def repo_info(self, **kwargs):
             state.calls.append(("info", kwargs))
-            return SimpleNamespace(sha=SNAPSHOT, siblings=[SimpleNamespace(
+            return SimpleNamespace(siblings=[SimpleNamespace(
                 rfilename=REMOTE, size=len(state.payload), lfs=None, blob_id=state.blob_id,
             )])
-
-        def list_repo_files(self, **kwargs):
-            state.calls.append(("list", kwargs))
-            return [REMOTE]
 
     def fetch(**kwargs):
         state.calls.append(("download", kwargs))
@@ -59,9 +54,7 @@ def ordinary_git_hub(tmp_path, monkeypatch):
 
 def fetch_sources(tmp_path):
     raw_dir = tmp_path / "raw"
-    return hf_sources.download_sources(
-        ["2020-06"], raw_dir, raw_dir / "sources.json", revision=SNAPSHOT,
-    )
+    return hf_sources.download_sources(["2020-06"], raw_dir, raw_dir / "sources.json")
 
 
 def test_ordinary_git_zip_is_verified_when_fetched_and_reused(tmp_path, ordinary_git_hub):
@@ -70,7 +63,6 @@ def test_ordinary_git_zip_is_verified_when_fetched_and_reused(tmp_path, ordinary
     source = manifest["sources"][0]
     assert Path(source["archive_path"]).read_bytes() == ordinary_git_hub.payload
     assert source["sha256"] == hashlib.sha256(ordinary_git_hub.payload).hexdigest()
-    assert source["hf_revision"] == SNAPSHOT
     assert source["hf_path"] == REMOTE
     before = manifest_path.read_bytes()
     ordinary_git_hub.calls.clear()
@@ -105,9 +97,9 @@ def test_cached_git_zip_must_match_remote_blob_before_local_publication(tmp_path
     assert not list((tmp_path / "raw").rglob("*.part"))
 
 
-def test_git_cache_changed_during_copy_cannot_publish_a_different_snapshot(tmp_path,
-                                                                         ordinary_git_hub,
-                                                                         monkeypatch):
+def test_git_cache_changed_during_copy_cannot_publish_different_bytes(
+    tmp_path, ordinary_git_hub, monkeypatch
+):
     copy_file = hf_sources.shutil.copyfileobj
     altered = zip_payload("b")
 
