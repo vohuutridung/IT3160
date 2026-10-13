@@ -15,8 +15,9 @@ import pytest
 import yaml
 
 from IT3160.data import pipeline
+from IT3160.data import sampling
 from IT3160.data.deduplication import game_content_hash, position_hash
-from IT3160.data.pgn_parser import ParsedGame, make_game_id
+from IT3160.data.pgn_parser import ParsedGame, is_valid_game, make_game_id
 from IT3160.data.phase import classify_phase, material_score
 from IT3160.data.sampling import sample_game_candidates
 from IT3160.data.schema import CandidateRecord, Phase, Split
@@ -165,6 +166,61 @@ def test_complete_zip_to_parquet_run_has_exact_quotas_and_auditable_provenance(t
     assert manifest["versions"]["position_hash_version"].endswith("v2")
     assert manifest["versions"]["selection_version"] == "hash-priority-shuffle-v1"
     assert all(value != "unavailable" for value in manifest["runtime"]["packages"].values())
+
+
+def test_optimized_pipeline_reuses_id_and_only_trusts_parser_checked_games(
+    tmp_path, balanced_games, monkeypatch
+):
+    hashed = []
+    sampled = []
+    real_hash = pipeline.game_content_hash
+    real_sample = pipeline._sample_game_candidates
+
+    def content_hash(game):
+        value = real_hash(game)
+        hashed.append(value)
+        return value
+
+    def no_second_hash(game):
+        pytest.fail("Sampling must reuse the pipeline's content hash")
+
+    def sample(parsed, split, **kwargs):
+        assert kwargs["check_legal_moves"] is False
+        assert kwargs["content_id"] == real_hash(parsed.game)
+        assert is_valid_game(parsed.game)
+        sampled.append(kwargs["content_id"])
+        return real_sample(parsed, split, **kwargs)
+
+    monkeypatch.setattr(pipeline, "game_content_hash", content_hash)
+    monkeypatch.setattr(sampling, "game_content_hash", no_second_hash)
+    monkeypatch.setattr(pipeline, "_sample_game_candidates", sample)
+    result = full_run(tmp_path, balanced_games)
+    assert result.status == "complete"
+    assert len(hashed) == result.candidate.games_seen == 13
+    assert len(sampled) == result.candidate.games_sampled == 12
+    assert len(set(sampled)) == 12
+
+
+def test_optimized_pipeline_matches_legacy_rows_and_parquet_bytes(
+    tmp_path, balanced_games, legacy_sampler, monkeypatch
+):
+    optimized = full_run(tmp_path / "optimized", balanced_games)
+
+    def sample(parsed, split, **kwargs):
+        return legacy_sampler(parsed, split, **{
+            key: kwargs[key] for key in ("seed", "opening_max_ply", "endgame_material_max")
+        })
+
+    monkeypatch.setattr(pipeline, "_sample_game_candidates", sample)
+    legacy = full_run(tmp_path / "legacy", balanced_games)
+    assert optimized.status == legacy.status == "complete"
+    assert optimized.candidate.candidate_counts == legacy.candidate.candidate_counts
+    assert optimized.dedup.stats == legacy.dedup.stats
+    assert optimized.validation.to_dict() == legacy.validation.to_dict()
+    for kind, name in (("candidate", "candidates_dir"), ("processed", "processed_dir")):
+        fast_dir, old_dir = getattr(optimized.paths, name), getattr(legacy.paths, name)
+        assert rows(fast_dir, kind) == rows(old_dir, kind)
+        assert files_snapshot(fast_dir) == files_snapshot(old_dir)
 
 
 def test_repeated_builds_have_identical_rows_order_and_parquet_hashes(tmp_path, balanced_games):

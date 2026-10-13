@@ -42,7 +42,7 @@ from .deduplication import (
 )
 from .pgn_parser import ParserStats, iter_valid_games
 from .progress import Progress, log
-from .sampling import sample_game_candidates
+from .sampling import _sample_game_candidates
 from .schema import (
     CandidateRecord,
     Phase,
@@ -684,9 +684,13 @@ def build_candidate_pool(
                     ratios=config.split,
                 )
 
-                candidates = sample_game_candidates(
+                # iter_valid_games has just validated every mainline move.
+                # Do not persist a "validated" flag on the mutable Game object.
+                candidates = _sample_game_candidates(
                     parsed,
                     split,
+                    content_id=content_id,
+                    check_legal_moves=False,
                     seed=config.seed,
                     opening_max_ply=(
                         config.phase.opening_max_ply

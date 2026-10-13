@@ -22,6 +22,7 @@ from IT3160.data.pgn_parser import (
     make_game_id,
 )
 from IT3160.data.phase import classify_phase, material_score
+from IT3160.data import sampling
 from IT3160.data.sampling import iter_game_candidates, sample_game_candidates
 from IT3160.data.schema import Phase, Split
 
@@ -442,3 +443,91 @@ def test_sampling_types_and_negative_thresholds_are_checked(short_game):
         sample_game_candidates(short_game, Split.TRAIN, opening_max_ply=-1)
     with pytest.raises(ValueError, match="endgame_material_max"):
         sample_game_candidates(short_game, Split.TRAIN, endgame_material_max=-1)
+
+
+@pytest.mark.parametrize("seed", [-7, 0, 1, 42, 71, 2**64])
+@pytest.mark.parametrize("thresholds", [(24, 8), (0, 64), (5, 0), (1000, 8)])
+def test_optimized_sampling_matches_legacy_records_and_order(
+    short_game, all_phase_game, legacy_sampler, seed, thresholds
+):
+    options = dict(seed=seed, opening_max_ply=thresholds[0], endgame_material_max=thresholds[1])
+    for parsed in (short_game, all_phase_game):
+        for split in Split:
+            assert sample_game_candidates(parsed, split, **options) == legacy_sampler(
+                parsed, split, **options
+            )
+
+
+@pytest.mark.parametrize("fen,move", [
+    ("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", "e1g1"),
+    ("r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1", "e8c8"),
+    ("k7/8/8/4KPp1/8/8/8/8 w - g6 0 1", "f5g6"),
+    ("4k3/P7/8/8/8/8/8/4K3 w - - 0 14", "a7a8n"),
+    ("4k3/P7/8/8/8/8/8/4K3 w - - 0 14", "a7a8q"),
+    ("4k3/8/8/8/8/8/p7/4K3 b - - 0 14", "a2a1n"),
+    ("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1", "e7e5"),
+])
+def test_snapshot_fen_matches_legacy_for_special_moves(legacy_sampler, fen, move):
+    board = chess.Board(fen)
+    assert board.is_legal(chess.Move.from_uci(move))
+    game = chess.pgn.Game()
+    game.setup(board)
+    game.headers["Result"] = "1-0"
+    game.add_main_variation(chess.Move.from_uci(move))
+    parsed = wrap_game(game)
+    actual = sample_game_candidates(parsed, Split.TRAIN)
+    assert actual == legacy_sampler(parsed, Split.TRAIN)
+    assert actual[0].fen == board.fen()
+    assert actual[0].move_uci == move
+
+
+def test_only_final_positions_are_serialized_and_materialized(all_phase_game, monkeypatch):
+    fen_calls = []
+    created = []
+    real_fen = chess.Board.fen
+    real_record = sampling.CandidateRecord
+
+    def fen(board, *args, **kwargs):
+        fen_calls.append(board.ply())
+        return real_fen(board, *args, **kwargs)
+
+    def record(**kwargs):
+        created.append(kwargs)
+        return real_record(**kwargs)
+
+    monkeypatch.setattr(chess.Board, "fen", fen)
+    monkeypatch.setattr(sampling, "CandidateRecord", record)
+    actual = sample_game_candidates(all_phase_game, Split.TRAIN)
+    assert len(actual) == len(created) == 3
+    # One FEN for the game content hash, then only the three selected positions.
+    assert len(fen_calls) == 4
+
+
+def test_iter_sampler_reuses_hash_without_double_computation(short_game, monkeypatch):
+    calls = []
+    real_hash = sampling.game_content_hash
+
+    def content_hash(game):
+        calls.append(game)
+        return real_hash(game)
+
+    monkeypatch.setattr(sampling, "game_content_hash", content_hash)
+    list(iter_game_candidates(iter([short_game]), assign_split_fn=lambda _: Split.TRAIN))
+    assert calls == [short_game.game]
+
+
+def test_public_sampling_rechecks_parser_output_after_mutation(tmp_path):
+    parsed = next(iter_valid_games(archive(tmp_path, ("valid.pgn", pgn())), "2021-12"))
+    parsed.game.end().add_main_variation(chess.Move.from_uci("a1a8"))
+    with pytest.raises(ValueError, match="Illegal move"):
+        sample_game_candidates(parsed, Split.TRAIN)
+    with pytest.raises(ValueError, match="Illegal move"):
+        list(iter_game_candidates(iter([parsed]), assign_split_fn=lambda _: Split.TRAIN))
+
+
+def test_public_content_hash_is_not_cached_on_mutable_game(short_game):
+    original_id = sample_game_candidates(short_game, Split.TRAIN)[0].game_id
+    short_game.game.end().add_main_variation(chess.Move.from_uci("f1b5"))
+    result = sample_game_candidates(short_game, Split.TRAIN)
+    assert result[0].game_id != original_id
+    assert result[0].game_id == game_content_hash(short_game.game)

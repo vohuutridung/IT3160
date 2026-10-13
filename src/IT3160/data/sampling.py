@@ -20,7 +20,7 @@ from .phase import (
     OPENING_MAX_PLY,
     classify_phase,
 )
-from .pgn_parser import ParsedGame, extract_positions
+from .pgn_parser import ParsedGame, _parse_elo
 from .schema import CandidateRecord, Phase, Split
 
 
@@ -88,6 +88,30 @@ def sample_game_candidates(
         metadata-based ParsedGame.game_id.
     """
 
+    return _sample_game_candidates(
+        parsed_game, split, seed=seed, opening_max_ply=opening_max_ply,
+        endgame_material_max=endgame_material_max,
+        max_samples_per_phase=max_samples_per_phase,
+    )
+
+
+def _sample_game_candidates(
+    parsed_game: ParsedGame,
+    split: Split,
+    *,
+    seed: int = 42,
+    opening_max_ply: int = OPENING_MAX_PLY,
+    endgame_material_max: int = ENDGAME_MATERIAL_MAX,
+    max_samples_per_phase: int = 1,
+    content_id: str | None = None,
+    check_legal_moves: bool = True,
+) -> list[CandidateRecord]:
+    """Internal sampler; reuse a caller-computed content ID without caching mutable games.
+
+    Only the pipeline's immediate iter_valid_games -> sampling path may disable
+    the repeated legality check. Public callers always retain that check.
+    """
+
     if not isinstance(parsed_game, ParsedGame):
         raise TypeError("parsed_game must be a ParsedGame")
 
@@ -107,9 +131,10 @@ def sample_game_candidates(
             "Only max_samples_per_phase=1 is supported"
         )
 
-    content_id = game_content_hash(parsed_game.game)
+    if content_id is None:
+        content_id = game_content_hash(parsed_game.game)
 
-    reservoirs: dict[Phase, CandidateRecord | None] = {
+    reservoirs: dict[Phase, tuple[chess.Board, chess.Move, int] | None] = {
         phase: None for phase in PHASE_ORDER
     }
     counts: dict[Phase, int] = {
@@ -122,22 +147,19 @@ def sample_game_candidates(
         for phase in PHASE_ORDER
     }
 
-    white_elo: int | None = None
-    black_elo: int | None = None
-    result: str | None = None
-    metadata_loaded = False
+    game = parsed_game.game
+    board = game.board()
+    white_elo = _parse_elo(game.headers.get("WhiteElo"))
+    black_elo = _parse_elo(game.headers.get("BlackElo"))
+    result = game.headers["Result"]
 
-    for raw in extract_positions(parsed_game):
-        if not metadata_loaded:
-            white_elo = raw["white_elo"]
-            black_elo = raw["black_elo"]
-            result = raw["result"]
-            metadata_loaded = True
-
-        board = chess.Board(raw["fen"])
+    for move in game.mainline_moves():
+        if check_legal_moves and not board.is_legal(move):
+            raise ValueError(f"Illegal move in game {parsed_game.game_id}: {move.uci()}")
+        ply = board.ply()
         phase = classify_phase(
             board,
-            raw["ply"],
+            ply,
             opening_max_ply=opening_max_ply,
             endgame_material_max=endgame_material_max,
         )
@@ -145,32 +167,25 @@ def sample_game_candidates(
         counts[phase] += 1
         seen = counts[phase]
 
-        candidate = CandidateRecord(
-            game_id=content_id,
-            source_month=parsed_game.source_month,
-            split=split,
-            phase=phase,
-            ply=raw["ply"],
-            fen=raw["fen"],
-            move_uci=raw["move_uci"],
-            white_elo=white_elo,
-            black_elo=black_elo,
-            result=result,
-        )
+        # Preserve Algorithm R's exact RNG calls: the first item consumes none.
+        # A copy keeps the pre-move state independent of subsequent board.push().
+        if reservoirs[phase] is None or rngs[phase].randrange(seen) == 0:
+            reservoirs[phase] = (board.copy(stack=False), move, ply)
+        board.push(move)
 
-        if reservoirs[phase] is None:
-            reservoirs[phase] = candidate
+    candidates = []
+    for phase in PHASE_ORDER:
+        snapshot = reservoirs[phase]
+        if snapshot is None:
             continue
-
-        # Algorithm R: replace with probability 1/seen.
-        if rngs[phase].randrange(seen) == 0:
-            reservoirs[phase] = candidate
-
-    return [
-        reservoirs[phase]
-        for phase in PHASE_ORDER
-        if reservoirs[phase] is not None
-    ]
+        selected_board, selected_move, ply = snapshot
+        candidates.append(CandidateRecord(
+            game_id=content_id, source_month=parsed_game.source_month,
+            split=split, phase=phase, ply=ply, fen=selected_board.fen(),
+            move_uci=selected_move.uci(), white_elo=white_elo,
+            black_elo=black_elo, result=result,
+        ))
+    return candidates
 
 
 def iter_game_candidates(
@@ -194,9 +209,10 @@ def iter_game_candidates(
         content_id = game_content_hash(parsed_game.game)
         split = assign_split_fn(content_id)
 
-        yield from sample_game_candidates(
+        yield from _sample_game_candidates(
             parsed_game,
             split,
+            content_id=content_id,
             seed=seed,
             opening_max_ply=opening_max_ply,
             endgame_material_max=endgame_material_max,
