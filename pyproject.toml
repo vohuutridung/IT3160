@@ -13,6 +13,7 @@ dependencies = [
     "PyYAML>=6,<7",
     "pyarrow>=14,<27",
     "huggingface-hub>=0.24,<3",
+    "h5py>=3.12,<4",
 ]
 
 [project.optional-dependencies]
