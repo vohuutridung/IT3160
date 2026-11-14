@@ -1,0 +1,48 @@
+flowchart TB
+    subgraph S1["① CHUẨN BỊ ĐỀ THI"]
+        direction LR
+        A["📚 <b>Ván cờ của kỳ thủ mạnh</b><br/>Elo từ 2400 trở lên"]
+        B["📝 <b>Đề thi 75.000 thế cờ</b><br/>AI <u>chưa từng</u> được xem<br/>chia đều khai cuộc · trung cuộc · tàn cuộc"]
+        A --> B
+    end
+
+    subgraph S2["② BÀI THI 1 · ĐOÁN NƯỚC ĐI"]
+        direction TB
+        C["🤖 <b>AI nhìn thế cờ</b><br/>và chọn nước đi"]
+        D["✅ <b>So với nước kỳ thủ</b><br/>đã thật sự đi"]
+        E["📊 <b>Chấm điểm</b><br/>% đoán trúng<br/>(chung và từng giai đoạn)"]
+        F["🎲 <b>So với mốc tham chiếu</b><br/>đoán bừa: ~6%<br/>đoán theo thói quen: ~9%"]
+        G["🔁 <b>Kiểm tra lại nhiều lần</b><br/>chắc chắn không do may mắn"]
+        C --> D --> E
+        F -.-> E
+        E --> G
+    end
+
+    subgraph S3["③ BÀI THI 2 · ĐÁNH CỜ THẬT"]
+        direction TB
+        H["♟️ <b>AI đấu với đối thủ</b><br/>AI khác · người đi ngẫu nhiên<br/>người chỉ biết ăn quân"]
+        I["⚖️ <b>Công bằng</b><br/>cùng thế khai cuộc,<br/>mỗi bên cầm Trắng 1 ván, Đen 1 ván"]
+        J["🏆 <b>Thắng · Hòa · Thua</b><br/>và lưu lại toàn bộ ván cờ"]
+        H --> I --> J
+    end
+
+    K["💡 <b>KẾT LUẬN</b><br/>AI giỏi ở giai đoạn nào?<br/>yếu ở đâu?<br/>cách huấn luyện nào tốt hơn?"]
+
+    B --> S2
+    B --> S3
+    S2 --> K
+    S3 --> K
+
+    classDef prep fill:#E8F1FB,stroke:#2B6CB0,stroke-width:2px,color:#1A202C
+    classDef exam fill:#EAF7EE,stroke:#2F855A,stroke-width:2px,color:#1A202C
+    classDef ref fill:#FFF8E1,stroke:#B7791F,stroke-width:2px,stroke-dasharray:5 4,color:#1A202C
+    classDef play fill:#FDEDEC,stroke:#C53030,stroke-width:2px,color:#1A202C
+    classDef result fill:#2D3748,stroke:#1A202C,stroke-width:2px,color:#FFFFFF
+    class A,B prep
+    class C,D,E,G exam
+    class F ref
+    class H,I,J play
+    class K result
+    style S1 fill:#F7FAFC,stroke:#2B6CB0,stroke-width:1px
+    style S2 fill:#F7FAFC,stroke:#2F855A,stroke-width:1px
+    style S3 fill:#F7FAFC,stroke:#C53030,stroke-width:1px

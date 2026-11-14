@@ -223,3 +223,10 @@ __marimo__/
 /output/
 
 /checkpoints/
+
+# Training/eval runs (checkpoints, history, eval outputs): regenerate locally.
+/runs/
+# Evaluation outputs: commit only small summaries (metrics.*, summary.json, games.pgn).
+/results/**/predictions.parquet
+/results/**/games.jsonl
+/results/**/*smoke*/

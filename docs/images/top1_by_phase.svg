@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 430" role="img"
+  aria-label="Top-1 theo giai đoạn: AI smoke 27,2% tổng, đoán theo thói quen 9,5%, đoán bừa 6,2%">
+<style>
+  .bg{fill:#fcfcfb} .t1{fill:#0b0b0b} .t2{fill:#52514e} .grid{stroke:#e4e3df} .axis{stroke:#a8a7a1}
+  .s1{fill:#2a78d6} .s2{fill:#eb6834} .s3{fill:#1baf7a}
+  @media (prefers-color-scheme: dark) {
+    .bg{fill:#1a1a19} .t1{fill:#f0efec} .t2{fill:#c3c2b7} .grid{stroke:#383835} .axis{stroke:#6b6a65}
+    .s1{fill:#3987e5} .s2{fill:#d95926} .s3{fill:#199e70}
+  }
+  text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+</style>
+<rect class="bg" width="760" height="430" rx="8"/>
+<text class="t1" x="56" y="30" font-size="18" font-weight="600">Tỉ lệ đoán trúng ngay nước đầu tiên (Top-1, %)</text>
+<rect class="s3" x="56" y="48" width="12" height="12" rx="3"/><text class="t2" x="74" y="58.5" font-size="13">Đoán bừa</text>
+<rect class="s2" x="155.2" y="48" width="12" height="12" rx="3"/><text class="t2" x="173.2" y="58.5" font-size="13">Đoán theo thói quen</text>
+<rect class="s1" x="335.79999999999995" y="48" width="12" height="12" rx="3"/><text class="t2" x="353.79999999999995" y="58.5" font-size="13">AI (smoke)</text>
+<line class="grid" x1="56" x2="740" y1="378.0" y2="378.0" stroke-width="1"/><text class="t2" x="48" y="382.0" font-size="12" text-anchor="end">0</text>
+<line class="grid" x1="56" x2="740" y1="337.1" y2="337.1" stroke-width="1"/><text class="t2" x="48" y="341.1" font-size="12" text-anchor="end">5</text>
+<line class="grid" x1="56" x2="740" y1="296.3" y2="296.3" stroke-width="1"/><text class="t2" x="48" y="300.3" font-size="12" text-anchor="end">10</text>
+<line class="grid" x1="56" x2="740" y1="255.4" y2="255.4" stroke-width="1"/><text class="t2" x="48" y="259.4" font-size="12" text-anchor="end">15</text>
+<line class="grid" x1="56" x2="740" y1="214.6" y2="214.6" stroke-width="1"/><text class="t2" x="48" y="218.6" font-size="12" text-anchor="end">20</text>
+<line class="grid" x1="56" x2="740" y1="173.7" y2="173.7" stroke-width="1"/><text class="t2" x="48" y="177.7" font-size="12" text-anchor="end">25</text>
+<line class="grid" x1="56" x2="740" y1="132.9" y2="132.9" stroke-width="1"/><text class="t2" x="48" y="136.9" font-size="12" text-anchor="end">30</text>
+<line class="grid" x1="56" x2="740" y1="92.0" y2="92.0" stroke-width="1"/><text class="t2" x="48" y="96.0" font-size="12" text-anchor="end">35</text>
+<line class="axis" x1="56" x2="740" y1="378" y2="378" stroke-width="1"/>
+<path class="s3" d="M79.5,378V354.2Q79.5,350.2 83.5,350.2H115.5Q119.5,350.2 119.5,354.2V378Z"><title>Đoán bừa · Khai cuộc: 3.4%</title></path>
+<text class="t2" x="99.5" y="344.2" font-size="12" text-anchor="middle">3,4</text>
+<path class="s2" d="M121.5,378V286.4Q121.5,282.4 125.5,282.4H157.5Q161.5,282.4 161.5,286.4V378Z"><title>Đoán theo thói quen · Khai cuộc: 11.7%</title></path>
+<text class="t2" x="141.5" y="276.4" font-size="12" text-anchor="middle">11,7</text>
+<path class="s1" d="M163.5,378V139.3Q163.5,135.3 167.5,135.3H199.5Q203.5,135.3 203.5,139.3V378Z"><title>AI (smoke) · Khai cuộc: 29.7%</title></path>
+<text class="t1" x="183.5" y="129.3" font-size="12" text-anchor="middle" font-weight="600">29,7</text>
+<text class="t1" x="141.5" y="402" font-size="14" text-anchor="middle">Khai cuộc</text>
+<path class="s3" d="M250.5,378V339.5Q250.5,335.5 254.5,335.5H286.5Q290.5,335.5 290.5,339.5V378Z"><title>Đoán bừa · Trung cuộc: 5.2%</title></path>
+<text class="t2" x="270.5" y="329.5" font-size="12" text-anchor="middle">5,2</text>
+<path class="s2" d="M292.5,378V344.4Q292.5,340.4 296.5,340.4H328.5Q332.5,340.4 332.5,344.4V378Z"><title>Đoán theo thói quen · Trung cuộc: 4.6%</title></path>
+<text class="t2" x="312.5" y="334.4" font-size="12" text-anchor="middle">4,6</text>
+<path class="s1" d="M334.5,378V192.4Q334.5,188.4 338.5,188.4H370.5Q374.5,188.4 374.5,192.4V378Z"><title>AI (smoke) · Trung cuộc: 23.2%</title></path>
+<text class="t1" x="354.5" y="182.4" font-size="12" text-anchor="middle" font-weight="600">23,2</text>
+<text class="t1" x="312.5" y="402" font-size="14" text-anchor="middle">Trung cuộc</text>
+<path class="s3" d="M421.5,378V299.5Q421.5,295.5 425.5,295.5H457.5Q461.5,295.5 461.5,299.5V378Z"><title>Đoán bừa · Tàn cuộc: 10.1%</title></path>
+<text class="t2" x="441.5" y="289.5" font-size="12" text-anchor="middle">10,1</text>
+<path class="s2" d="M463.5,378V283.1Q463.5,279.1 467.5,279.1H499.5Q503.5,279.1 503.5,283.1V378Z"><title>Đoán theo thói quen · Tàn cuộc: 12.1%</title></path>
+<text class="t2" x="483.5" y="273.1" font-size="12" text-anchor="middle">12,1</text>
+<path class="s1" d="M505.5,378V146.7Q505.5,142.7 509.5,142.7H541.5Q545.5,142.7 545.5,146.7V378Z"><title>AI (smoke) · Tàn cuộc: 28.8%</title></path>
+<text class="t1" x="525.5" y="136.7" font-size="12" text-anchor="middle" font-weight="600">28,8</text>
+<text class="t1" x="483.5" y="402" font-size="14" text-anchor="middle">Tàn cuộc</text>
+<path class="s3" d="M592.5,378V331.3Q592.5,327.3 596.5,327.3H628.5Q632.5,327.3 632.5,331.3V378Z"><title>Đoán bừa · Tổng: 6.2%</title></path>
+<text class="t2" x="612.5" y="321.3" font-size="12" text-anchor="middle">6,2</text>
+<path class="s2" d="M634.5,378V304.4Q634.5,300.4 638.5,300.4H670.5Q674.5,300.4 674.5,304.4V378Z"><title>Đoán theo thói quen · Tổng: 9.5%</title></path>
+<text class="t2" x="654.5" y="294.4" font-size="12" text-anchor="middle">9,5</text>
+<path class="s1" d="M676.5,378V159.7Q676.5,155.7 680.5,155.7H712.5Q716.5,155.7 716.5,159.7V378Z"><title>AI (smoke) · Tổng: 27.2%</title></path>
+<text class="t1" x="696.5" y="149.7" font-size="12" text-anchor="middle" font-weight="600">27,2</text>
+<text class="t1" x="654.5" y="402" font-size="14" text-anchor="middle" font-weight="600">Tổng</text>
+</svg>

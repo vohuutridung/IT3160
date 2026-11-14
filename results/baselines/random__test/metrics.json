@@ -1,0 +1,48 @@
+{
+  "overall": {
+    "samples": 75000,
+    "nll": 3.2248088002197735,
+    "top1": 6.21393355283615,
+    "top3": 16.253800658508453,
+    "top5": 24.232112208625196,
+    "mean_rank": 15.27864,
+    "mean_entropy": 3.2248088002197735,
+    "mean_legal_moves": 29.55728
+  },
+  "opening": {
+    "samples": 25000,
+    "nll": 3.5276702544039513,
+    "top1": 3.3689968905932197,
+    "top3": 9.746990671779658,
+    "top5": 15.730984452966098,
+    "mean_rank": 18.1926,
+    "mean_entropy": 3.5276702544039513,
+    "mean_legal_moves": 35.3852
+  },
+  "middlegame": {
+    "samples": 25000,
+    "nll": 3.428037932966014,
+    "top1": 5.15043971590276,
+    "top3": 13.201319147708283,
+    "top5": 19.373865246180465,
+    "mean_rank": 17.83498,
+    "mean_entropy": 3.428037932966014,
+    "mean_legal_moves": 34.66996
+  },
+  "endgame": {
+    "samples": 25000,
+    "nll": 2.7187182132893555,
+    "top1": 10.122364052012472,
+    "top3": 25.81309215603741,
+    "top5": 37.59148692672902,
+    "mean_rank": 9.80834,
+    "mean_entropy": 2.7187182132893555,
+    "mean_legal_moves": 18.61668
+  },
+  "info": {
+    "data": "data/tensors/official-v1/test.h5",
+    "limit": null,
+    "device": "cpu",
+    "policy": "random-legal (analytic expectation)"
+  }
+}
